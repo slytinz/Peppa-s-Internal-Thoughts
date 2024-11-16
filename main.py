@@ -34,9 +34,11 @@ discord_token = config_data.get("discord_bot_token")
 '''
 # model = StableDiffusionPipeline.from_pretrained("hakurei/waifu-diffusion-v1-4", torch_dtype=torch.float16)
 # model = StableDiffusionPipeline.from_pretrained("gsdf/Counterfeit-V2.5", torch_dtype=torch.float16)
-model = StableDiffusionPipeline.from_pretrained("nitrosocke/Arcane-Diffusion", torch_dtype=torch.float16)
+# model = StableDiffusionPipeline.from_pretrained("nitrosocke/Arcane-Diffusion", torch_dtype=torch.float16)
 # model = StableDiffusionPipeline.from_pretrained("dreamlike-art/dreamlike-diffusion-1.0", torch_dtype=torch.float16)
 # model = StableDiffusionPipeline.from_pretrained("dreamlike-art/dreamlike-anime-1.0", torch_dtype=torch.float16)
+model = StableDiffusionPipeline.from_pretrained("prompthero/openjourney", torch_dtype=torch.float16)
+arcane_model = StableDiffusionPipeline.from_pretrained("nitrosocke/Arcane-Diffusion",torch_dtype=torch.float16)
 # torch_dtype=torch.float32
 
 '''
@@ -47,6 +49,7 @@ print(torch.cuda.is_available())  # Should print True if CUDA is available
 print(torch.cuda.current_device())  # Prints the current device ID
 print(torch.cuda.get_device_name(0))  # Prints the name of the GPU
 model.to("cuda" if torch.cuda.is_available() else "cpu")
+arcane_model.to("cuda" if torch.cuda.is_available() else "cpu")
 
 '''
     Discord Configurations
@@ -90,15 +93,15 @@ async def test_command(ctx):
     await ctx.send("Test command works!")
 
 '''
-    generate_image
+    generate_generic_image
     
     Main Function of the Peppa's Internal Thoughts bot. Receives prompts with the use of "!Peppa" command. 
     Prompt is then used by the stable diffusion model to generate images.
 '''
 @bot.command(name="Peppa")
-async def generate_image(ctx, *, prompt: str = None):
+async def generate_generic_image(ctx, *, prompt: str = None):
     if not prompt:
-        await ctx.send("MEOW! Bad Kitty! Please provide a prompt for the image generation.")
+        await ctx.send("MEOW! Bad Kitty! Please provide a prompt for the image generation. Examples prompts can be found: https://prompthero.com/openjourney-prompts?utm_source=huggingface&utm_medium=referral")
         return
     
     # Initial message indicating progress
@@ -106,6 +109,51 @@ async def generate_image(ctx, *, prompt: str = None):
     
     try:
         image = model(prompt).images[0]
+        
+        # Setup image to be sent
+        image_bytes = BytesIO()
+        image = image.resize((512, 512))
+        image.save(image_bytes, format="PNG", optimize=True)
+        image_bytes.seek(0)
+        
+        # Check Image size
+        if len(image_bytes.getvalue()) > 8 * 1024 * 1024:
+            print("The generated image exceeds Discord's file size limit.")
+            await ctx.send("Something went wrong during image generation.")
+            raise discord.HTTPException("Image Size exceeds Discord limitations")
+        
+        # Send Image to Discord
+        await ctx.send(file=discord.File(image_bytes, filename="generated_image.png"))
+        await progress_message.delete()
+        
+        print("Image successfully sent to Discord.")
+    
+    # Handles Generic Errors
+    except Exception as e:
+      await progress_message.edit(content="Something went wrong during image generation.")
+      print(f"Error has occured: {e}")
+    # Handles Discord Errors
+    except discord.HTTPException as e:
+        print(f"Failed to send image to Discord: {e}")
+        
+        
+'''
+    generate_arcane_image
+    
+    Main Function of the Peppa's Internal Thoughts bot. Receives prompts with the use of "!LOL" command. 
+    Prompt is then used by the stable diffusion model to generate images.
+'''
+@bot.command(name="LOL")
+async def generate_arcane_image(ctx, *, prompt: str = None):
+    if not prompt:
+        await ctx.send("MEOW! Bad Kitty! Please provide a prompt for the image generation. Add 'arcane style' for some some flair")
+        return
+    
+    # Initial message indicating progress
+    progress_message = await ctx.send(f"Generating your image {ctx.author.mention}, please wait...")
+    
+    try:
+        image = arcane_model(prompt).images[0]
         
         # Setup image to be sent
         image_bytes = BytesIO()
